@@ -1,0 +1,4 @@
+CREATE TABLE "GCG_4121_Change"(
+ "FldName" VARCHAR(50),
+ "Data_B" VARCHAR(50),
+ "Data_C" VARCHAR(50));
