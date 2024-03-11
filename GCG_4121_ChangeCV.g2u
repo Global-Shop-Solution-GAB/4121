@@ -1,0 +1,368 @@
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.sCVTbl.Declare(String)
+V.Global.sCV.Declare(string)
+V.Local.sBeforeTbl.Declare(string)
+Variable.Local.iRet.Declare(long)
+
+'Vendor Master
+'Hook: 14469 Pre Save Hook
+'Hook: 14470 Post Save Hook
+'Hook: 14475 Post Delete Hook
+
+'Customer Master
+'Hook: 14384 Customer Master Pre Save Hook
+'Hook: 14385 Customer Master Post Save Hook
+'Hook: 14386 Customer Master Post Delete Hook
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass,10000)
+
+f.Intrinsic.Control.If(V.Caller.Hook,=,14469,"or",V.Caller.Hook,=,14470,V.Caller.Hook,=,14475)
+	V.Local.sCVTbl.Set("V_Vendor_master")
+	V.Global.sCV.Set("Vendor")
+	V.Local.sBeforeTbl.Set("GCG_4121_Venchange")
+f.Intrinsic.Control.ElseIf(V.Caller.Hook,=,14384,"or",V.Caller.Hook,=,14385,V.Caller.Hook,=,14386)
+	V.Local.sCVTbl.Set("V_Customer_master")
+	V.Global.sCV.Set("Customer")
+	V.Local.sBeforeTbl.Set("GCG_4121_ChangeB")
+f.Intrinsic.Control.Endif
+	
+f.Intrinsic.Control.If(V.Caller.Hook,=,14475,"or",V.Caller.Hook,=,14386)
+	f.Intrinsic.String.Build("select Count(*) from {0} where  {1} = '{2}'",V.Local.sCVTbl, V.Global.sCV,v.passed.000002.Trim ,V.Local.sSQL)
+	Function.ODBC.Connection!conx.ExecuteAndReturn(V.Local.sSQL,Variable.Local.iRet)
+	F.Intrinsic.Control.If(Variable.Local.iRet,=,0)
+		f.Intrinsic.Control.CallSub(emailalert)
+	f.Intrinsic.Control.Endif
+	f.Intrinsic.Control.ExitSub 
+f.Intrinsic.Control.Endif
+
+F.Intrinsic.Control.If(V.Caller.Switches,=,"O")
+	'Hook: 14384 Customer Master Pre Save Hook
+	f.Intrinsic.Control.If(V.Caller.Hook,=,14384,"or",V.Caller.Hook,=,14469)
+	
+'F.Intrinsic.Debug.InvokeDebugger
+
+F.Intrinsic.Debug.Stop
+
+		f.Intrinsic.String.Build("delete from {0} where rtrim({1}) = '{2}'",V.Local.sBeforeTbl, V.Global.sCV,v.passed.000002.trim,V.Local.sSQL)
+		f.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		V.Local.sSQL.Set("delete from GCG_4121_Change")
+		f.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		
+		f.Intrinsic.String.Build("insert into {0} select * from {1} where rtrim({2}) = '{3}'",V.Local.sBeforeTbl,V.Local.sCVTbl,V.Global.sCV, v.passed.000002,V.Local.sSQL)
+'			F.Intrinsic.Debug.Stop
+		f.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		
+	
+		'Save Additional
+		f.Intrinsic.Control.If(V.Global.sCV,=,"Vendor")
+			'select Bank_Account,Bank_Routing_Num,Bank_Account_Num from v_VENDOR_INTL   where vendor = '000100'  and  rec = 4  
+'			F.Intrinsic.Debug.InvokeDebugger
+			
+F.Intrinsic.Debug.Stop
+
+			f.Intrinsic.String.Build("delete from GCG_4121_VendorAddl where rtrim(vendor) = '{0}'",v.passed.000002.Trim ,V.Local.sSQL)
+			f.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'			f.Intrinsic.String.Build("Insert into GCG_4121_VendorAddl select vendor,Bank_Account,Bank_Routing_Num,Bank_Account_Num,Default_Currency from v_VENDOR_INTL where rtrim(vendor) = '{0}' and  rec = 4 ", v.passed.000002,V.Local.sSQL)
+			f.Intrinsic.String.Build("Insert into GCG_4121_VendorAddl select  vendor,Bank_Account,Bank_Routing_Num,Bank_Account_Num,Default_Currency,NAME_VENDOR_PAY,ADDRESS1_PAY,ADDRESS2_PAY,CITY_PAY,STATE_PAY,CODE_ZIP_PAY,COUNTRY_PAY,ATTENTION_PAY from v_VENDOR_PAY_TO PAYTO join v_VENDOR_INTL INTL on PAYTO.vendor = INTL.Vendor where rtrim(vendor) = '{0}'", v.passed.000002,V.Local.sSQL)
+		f.Intrinsic.Control.ElseIf(V.Global.sCV,=,"Customer")
+		
+			'select Terms_Message from v_CUSTOMER_SALES join v_ar_terms on  payment_terms =  Terms_code   where customer = '1STCPA' and  Rec = 2
+			f.Intrinsic.String.Build("delete from GCG_4121_CustAddl where customer = '{0}'",v.passed.000002,V.Local.sSQL)
+			f.ODBC.Connection!conx.Execute(V.Local.sSQL)
+			f.Intrinsic.String.Build("Insert into GCG_4121_CustAddl select customer,Terms_Message from v_CUSTOMER_SALES join v_ar_terms on  payment_terms =  Terms_code where rtrim(customer) = '{0}' and  Rec = 2 ", v.passed.000002.trim,V.Local.sSQL)
+		f.Intrinsic.Control.EndIf 
+		f.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		
+	''Hook: 14385 Customer Master Post Save Hook	
+	F.Intrinsic.Control.ElseIf(V.Caller.Hook,=,14385,"or",V.Caller.Hook,=,14470)	
+		f.Intrinsic.String.Build("select * from {0} where rtrim({1}) = '{2}'",V.Local.sBeforeTbl, V.Global.sCV,v.passed.000002.trim,V.Local.sSQL)
+		Function.data.DataTable.CreateFromSQL("Cust_Before","conx",v.Local.sSql,True)
+	
+	'F.Intrinsic.Debug.Stop	
+		f.Intrinsic.String.Build("select * from {0} where  {1} = '{2}'",V.Local.sCVTbl, V.Global.sCV,v.passed.000002.trim,V.Local.sSQL)
+		Function.data.DataTable.CreateFromSQL("Cust_After","conx",v.Local.sSql,True)
+		
+		F.Data.DataTable.Create("Cust_Change",True)
+	
+	'Add a Columns to the DataTable
+		F.Data.DataTable.AddColumn("Cust_Change","FldName","String")
+		F.Data.DataTable.AddColumn("Cust_Change","Data_B","String")
+		F.Data.DataTable.AddColumn("Cust_Change","Data_C","String")
+		
+		'	loop through the data table
+		'===============================
+		f.Intrinsic.String.Build("SELECT Xe$Name as fldname FROM X$Field INNER JOIN X$File ON Xf$Id = Xe$File WHERE Xf$Name = '{0}' ORDER BY Xe$Offset",V.Local.sBeforeTbl,v.Local.sSQL)
+		F.ODBC.Connection!Conx.OpenLocalRecordsetRO("rstFld",v.Local.sSQL)
+		f.Intrinsic.Control.DoUntil(v.ODBC.conx!rstFld.EOF,=,True)
+			f.Intrinsic.Control.CallSub(FldCompare,"fldname",v.ODBC.Conx!rstFld.FieldValTrim!fldname)
+			f.ODBC.conx!rstFld.MoveNext 
+		F.Intrinsic.Control.loop
+		
+		F.ODBC.Conx!rstFld.Close
+		
+
+		
+		f.Intrinsic.Control.If(V.Global.sCV,=,"Vendor")
+		
+		
+F.Intrinsic.Debug.Stop
+		
+			'select Bank_Account,Bank_Routing_Num,Bank_Account_Num from v_VENDOR_INTL   where vendor = '000100'  and  rec = 4  
+
+'			v.Local.sSQL.set("select A.Bank_Account as A_Type, A.Bank_Routing_Num as A_Routing,A.Bank_Account_Num as A_Account,B.Bank_Account_Type as B_Type,B.Bank_Routing_Num as B_Routing,")
+'			f.Intrinsic.String.Build("{0} B.Bank_Account_Num as B_Account from GCG_4121_VendorAddl B join v_VENDOR_INTL A on A.vendor = B.vendor where rtrim(A.vendor) = '{1}'" ,v.Local.sSQL,v.passed.000002,v.Local.sSQL)
+			
+			v.Local.sSQL.set("select A.Bank_Account as A_Type, A.Bank_Routing_Num as A_Routing,A.Bank_Account_Num as A_Account,B.Bank_Account_Type as B_Type,B.Bank_Routing_Num as B_Routing,")
+			f.Intrinsic.String.Build("{0} B.Bank_Account_Num as B_Account,A.Default_Currency as A_Currency,B.Vendor_Curr as B_Currency ,B.NAME_VENDOR_PAY as B_PayName,B.ADDRESS1_PAY as B_Add1,B.ADDRESS2_PAY as B_Add2,B.CITY_PAY as B_City,",v.Local.sSQL,v.Local.sSQL)
+			f.Intrinsic.String.Build("{0} B.STATE_PAY as B_State,B.CODE_ZIP_PAY as B_Zip,B.COUNTRY_PAY as B_Country,B.ATTENTION_PAY as B_Attension,C.NAME_VENDOR_PAY as C_PayName,C.ADDRESS1_PAY as C_Add1,",v.Local.sSQL,v.Local.sSQL)
+			f.Intrinsic.String.Build("{0} C.ADDRESS2_PAY as C_Add2,C.CITY_PAY as C_City,C.STATE_PAY as C_State,C.CODE_ZIP_PAY as C_Zip,C.COUNTRY_PAY as C_Country,C.ATTENTION_PAY as C_Attension",v.Local.sSQL,v.Local.sSQL)
+			f.Intrinsic.String.Build("{0} from GCG_4121_VendorAddl B join v_VENDOR_INTL A on A.vendor = B.vendor join v_VENDOR_PAY_TO C on A.vendor = C.vendor where rtrim(A.vendor) = '{1}'",v.Local.sSQL,v.passed.000002,v.Local.sSQL)
+			
+			F.ODBC.Connection!Conx.OpenLocalRecordsetRO("rstFld",v.Local.sSQL)
+			f.Intrinsic.Control.if(v.ODBC.conx!rstFld.EOF,=,False)	
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!A_Type,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Type)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","Accout Type","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Type,"Data_C",v.ODBC.conx!rstFld.FieldVal!A_Type)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!A_Routing,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Routing)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","Bank Routing","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Routing,"Data_C",v.ODBC.conx!rstFld.FieldVal!A_Routing)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!A_Account,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Account)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","Bank AccoutNo","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Account,"Data_C",v.ODBC.conx!rstFld.FieldVal!A_Account)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!A_Currency,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Currency)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","Currency","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Currency,"Data_C",v.ODBC.conx!rstFld.FieldVal!A_Currency)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!C_PayName,<>,v.ODBC.conx!rstFld.FieldValTrim!B_PayName)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","PayTo Name","Data_B",v.ODBC.conx!rstFld.FieldVal!B_PayName,"Data_C",v.ODBC.conx!rstFld.FieldVal!C_PayName)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!C_Add1,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Add1)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","ADDRESS1 PAY","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Add1,"Data_C",v.ODBC.conx!rstFld.FieldVal!C_Add1)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!C_Add2,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Add2)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","ADDRESS2 PAY","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Add2,"Data_C",v.ODBC.conx!rstFld.FieldVal!C_Add2)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!C_City,<>,v.ODBC.conx!rstFld.FieldValTrim!B_City)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","City PAY","Data_B",v.ODBC.conx!rstFld.FieldVal!B_City,"Data_C",v.ODBC.conx!rstFld.FieldVal!C_City)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!C_State,<>,v.ODBC.conx!rstFld.FieldValTrim!B_State)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","State PAY","Data_B",v.ODBC.conx!rstFld.FieldVal!B_State,"Data_C",v.ODBC.conx!rstFld.FieldVal!C_State)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!C_Zip,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Zip)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","Zip PAY","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Zip,"Data_C",v.ODBC.conx!rstFld.FieldVal!C_Zip)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!C_Country,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Country)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","Country PAY","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Country,"Data_C",v.ODBC.conx!rstFld.FieldVal!C_Country)
+				f.Intrinsic.Control.EndIf
+				
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!C_Attension,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Attension)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","Attension PAY","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Attension,"Data_C",v.ODBC.conx!rstFld.FieldVal!C_Attension)
+				f.Intrinsic.Control.EndIf
+				
+			f.Intrinsic.Control.EndIf
+		f.Intrinsic.Control.ElseIf(V.Global.sCV,=,"Customer")
+
+			v.Local.sSQL.set("select Terms_Message as A_Terms,B.Terms as B_Terms from v_CUSTOMER_SALES A join v_ar_terms on  payment_terms =  Terms_code ")
+			f.Intrinsic.String.Build("{0} join  GCG_4121_CustAddl B on  A.customer = B.customer where A.customer = '{1}' and  Rec = 2",v.Local.sSQL,v.passed.000002,v.Local.sSQL)
+			
+			F.ODBC.Connection!Conx.OpenLocalRecordsetRO("rstFld",v.Local.sSQL)
+			f.Intrinsic.Control.if(v.ODBC.conx!rstFld.EOF,=,False)
+				f.Intrinsic.Control.if(v.ODBC.conx!rstFld.FieldValTrim!A_Terms,<>,v.ODBC.conx!rstFld.FieldValTrim!B_Terms)	
+					F.Data.DataTable.AddRow("Cust_Change","FldName","Terms","Data_B",v.ODBC.conx!rstFld.FieldVal!B_Terms,"Data_C",v.ODBC.conx!rstFld.FieldVal!A_Terms)
+				f.Intrinsic.Control.EndIf
+			f.Intrinsic.Control.EndIf
+		f.Intrinsic.Control.EndIf 
+		
+		F.ODBC.Conx!rstFld.Close
+		
+			
+		F.Data.DataTable.SaveToDB("Cust_Change","conx","GCG_4121_change","FldName*!*Data_B*!*Data_C")
+		
+		
+		f.Intrinsic.Control.If(v.DataTable.Cust_Change.RowCount,>,0)
+			f.Intrinsic.Control.CallSub(emailalert)
+		f.Intrinsic.Control.EndIf 
+		
+		F.Data.DataTable.Close("CUST_Before")
+		F.Data.DataTable.Close("CUST_After")
+		F.Data.DataTable.Close("Cust_Change")
+	
+	f.Intrinsic.Control.EndIf 
+	
+f.Intrinsic.Control.EndIf 
+
+F.ODBC.Connection!conX.Close
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4121_ChangeCV.G2U",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.FldCompare.Start
+F.Intrinsic.Control.SetErrorHandler("FldCompare_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+F.Intrinsic.Debug.Stop
+
+'Variable.DataTable.datatablename(row number).fieldname!property
+'	F.Intrinsic.Debug.Stop
+F.Intrinsic.Control.If(v.DataTable.Cust_Before.RowCount,>=,0,"AND",V.DataTable.Cust_After.RowCount,>=,0)
+	f.Intrinsic.Control.If(V.DataTable.Cust_Before(0).[v.args.fldname]!FieldVal,<>, V.DataTable.Cust_After(0).[v.args.fldname]!FieldVal)
+		F.Data.DataTable.AddRow("Cust_Change","FldName",v.args.fldname,"Data_B",V.DataTable.Cust_Before(0).[v.args.fldname]!FieldVal,"Data_C",V.DataTable.Cust_After(0).[v.args.fldname]!FieldVal)
+	f.Intrinsic.Control.endif
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("FldCompare_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4121_ChangeCV.G2U",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.FldCompare.End
+
+Program.Sub.EmailAlert.Start
+F.Intrinsic.Control.SetErrorHandler("EmailAlert_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iRUNID.Declare(Long)
+V.Local.iLOGID.Declare(Long)
+V.Local.sSel.Declare(String)
+V.Local.sParams.Declare(String)
+V.Local.sVals.Declare(String)
+V.Local.iRptid.Declare(Long)
+V.Local.sRpt.Declare(String)
+V.Local.sRptName.Declare(String)
+V.Local.sSubj.Declare(String)
+V.Local.sBody.Declare(String)
+V.Local.sRet.Declare(string)
+V.Local.sSender.Declare(string)
+V.Local.sRecepient.Declare(string)
+V.Local.i.Declare(long)
+V.Local.iUserID.Declare(long)
+
+'F.Intrinsic.Debug.InvokeDebugger
+F.Intrinsic.Debug.Stop
+'not delete
+'f.Intrinsic.Control.If(V.Caller.Hook,<>,14475,"or",V.Caller.Hook,<>,14386)
+f.Intrinsic.Control.If(V.Caller.Hook,<>,14475)
+f.Intrinsic.Control.AndIf(V.Caller.Hook,<>,14386)
+	F.Global.BI.GetRunID(V.Local.iRUNID)
+	F.Global.BI.StartLogging(V.Local.iRUNID,-1,-1,"",V.Local.iLOGID)
+	
+	'F.Intrinsic.Debug.InvokeDebugger
+	'F.Intrinsic.Debug.Stop
+	
+	F.Intrinsic.String.Split("BIRUNID*!*","*!*",V.Local.sParams)
+	F.Intrinsic.String.Concat(V.local.iRUNID,"*!*",V.Local.svals)
+	F.Intrinsic.String.Split(V.local.svals,"*!*",V.Local.svals)
+	
+	F.Intrinsic.String.Build("{0}\Custom\GCG_4121_ChangeCV.rpt",V.Caller.BusintDir,V.Local.sRptName)
+	F.Global.BI.GetIDFromName("GCG_4121_ChangeCV.rpt",V.Local.iRptid)
+	'V.Local.sParams.set("BIRUNID")
+	'V.Local.sVals.Set(V.Local.iRUNID)
+	F.Global.BI.StopLogging(V.Local.iLOGID)
+	
+'	V.Local.sRptName.Set(v.Caller.TempDir)
+	
+	f.Intrinsic.String.Build("{0}\change.pdf",v.Caller.TempDir,V.Local.sRptName)
+	'AttachmentFileName*!*AttachmentFilePath
+	
+	F.Global.Bi.SaveReport(v.Local.iRptID,1,V.Local.sParams,V.Local.sVals,V.Local.sRptName)  'save
+	
+	f.Intrinsic.String.Build("{0}*!*{1}","change.pdf",v.Caller.TempDir,V.Local.sRptName)
+Function.Intrinsic.Control.EndIf	
+
+f.Intrinsic.Control.If(v.Global.sCV,=,"Vendor")
+	V.Local.sSubj.set("VENDOR Screen has been changed")
+f.Intrinsic.Control.elseIf(v.Global.sCV,=,"Customer")
+	V.Local.sSubj.set("Customer Screen has been changed")
+Function.Intrinsic.Control.EndIf
+
+f.Intrinsic.Control.If(V.Caller.Hook,=,14475)  'vendor delete
+	V.Local.sSubj.set("VENDOR deleted")
+	f.Intrinsic.String.Build("Vendor:{0} deleted by {1}",v.passed.000002,v.Caller.User ,v.Local.sBody)  
+f.Intrinsic.Control.ElseIf(V.Caller.Hook,=,14386) 'customer delete
+	V.Local.sSubj.set("Customer deleted")
+	f.Intrinsic.String.Build("Customer:{0} deleted by {1}",v.passed.000002,v.Caller.User,v.Local.sBody)  
+f.Intrinsic.Control.Else
+	f.Intrinsic.String.Build("{0} had made modification to {1} Screen",v.Caller.User,v.Global.sCV,v.Local.sBody)  
+	f.Intrinsic.String.Build("{0}{1}{2}:{3}",v.Local.sBody,v.Ambient.NewLine,v.Global.sCV.trim,v.passed.000002,v.Local.sBody)  
+f.Intrinsic.Control.Endif
+F.Global.Security.GetuserID(V.Caller.User,V.Caller.CompanyCode,V.Local.iUserID)
+Function.Global.Security.GetGroupMembers("CVCHNG",V.Caller.CompanyCode,V.Local.sRet)
+F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+F.Intrinsic.Control.If(V.Local.sRet,<>,"")
+	F.Global.Security.GetUserEmail(V.Local.sRet(0),V.Local.sSender)
+	F.Intrinsic.Control.For(V.Local.i,V.Local.sRet.LBound,V.Local.sRet.UBound,1)
+		'Get email address of GS User
+		F.Global.Security.GetUserEmail(V.Local.sRet(V.Local.i),V.Local.sRecepient)
+	'Alert and end script if no email found for GS User
+		F.Intrinsic.control.if(V.Local.sRecepient,<>,"")
+			F.Global.Messaging.QueueMessage(v.Caller.CompanyCode,V.Local.iUserID,v.Caller.Caller,V.Local.sSubj,v.local.sSender,v.Local.sRecepient,V.Local.sBody,5,v.Local.sRecepient,False,"","","","","","","",V.Local.sRptName,False)
+		F.Intrinsic.control.endif
+	F.Intrinsic.Control.Next(V.Local.i)
+Function.Intrinsic.Control.EndIf
+		
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("EmailAlert_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4121_ChangeCV.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.EmailAlert.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.SetErrorHandler("EmailAlert_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("EmailAlert_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4121_ChangeCV.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Unload.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_4121_ChangeCV$}$RAN$}$7/18/2016 12:43:08 PM$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$Modification of ARC Project 1507 original program GCG_6963-2_Multi_MRP.gas
+This adds in the ability to save the Summary for later use.
+Program.Sub.Comments.End
